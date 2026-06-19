@@ -95,15 +95,16 @@ pub fn run() {
             // files (which blocks the installer from overwriting them on update).
             if let tauri::RunEvent::ExitRequested { .. } = event {
                 let state = app_handle.state::<EngineState>();
-                if let Ok(mut g) = state.engine.lock() {
-                    if let Some(c) = g.take() {
-                        let _ = c.kill();
-                    }
+                // Take the children out (owned) so the lock guards are released
+                // within these statements, before `state` is dropped.
+                let engine_child = state.engine.lock().ok().and_then(|mut g| g.take());
+                let ocr_child = state.ocr.lock().ok().and_then(|mut g| g.take());
+                drop(state);
+                if let Some(c) = engine_child {
+                    let _ = c.kill();
                 }
-                if let Ok(mut g) = state.ocr.lock() {
-                    if let Some(c) = g.take() {
-                        let _ = c.kill();
-                    }
+                if let Some(c) = ocr_child {
+                    let _ = c.kill();
                 }
             }
         });
