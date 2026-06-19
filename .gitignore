@@ -1,0 +1,31 @@
+# Node / Vite
+node_modules/
+dist/
+*.log
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+src-tauri/binaries/
+
+# Go
+engine/engine
+engine/*.exe
+
+# Python OCR sidecar
+ocr-sidecar/.venv/
+ocr-sidecar/build/
+ocr-sidecar/dist/
+ocr-sidecar/*.spec
+__pycache__/
+
+# Bundled binaries / models (provided at build time, under src-tauri/resources)
+src-tauri/resources/ffmpeg/*
+src-tauri/resources/fonts/*
+src-tauri/resources/models/*
+!src-tauri/resources/**/.gitkeep
+
+# OS
+.DS_Store
+# JetBrains
+.idea/
