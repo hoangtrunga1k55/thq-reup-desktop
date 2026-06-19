@@ -259,6 +259,8 @@ func (o *Orchestrator) StartJob(parent context.Context, cmdID string, raw json.R
 		"percent":     100,
 		"title":       title,
 		"output_path": st.outputPath,
+		"ai_content":  st.aiContent, // title, short_description, caption, hashtags, title_variants
+		"hook_text":   st.hookText,
 	}})
 }
 

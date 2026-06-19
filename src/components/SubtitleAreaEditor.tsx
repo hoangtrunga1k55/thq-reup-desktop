@@ -7,6 +7,7 @@ type Props = {
   videoHeight: number;
   initial: Region;
   onConfirm: (region: Region) => void;
+  onCancel: () => void;
 };
 
 type DragState = {
@@ -18,7 +19,7 @@ type DragState = {
 
 // Lets the user adjust the cover/subtitle rectangle over the preview frame.
 // The rectangle is kept in VIDEO coordinates; we scale to the rendered image.
-export default function SubtitleAreaEditor({ frameUrl, videoWidth, videoHeight, initial, onConfirm }: Props) {
+export default function SubtitleAreaEditor({ frameUrl, videoWidth, videoHeight, initial, onConfirm, onCancel }: Props) {
   const [region, setRegion] = useState<Region>(initial);
   const imgRef = useRef<HTMLImageElement>(null);
   const drag = useRef<DragState | null>(null);
@@ -103,12 +104,20 @@ export default function SubtitleAreaEditor({ frameUrl, videoWidth, videoHeight, 
       <div className="text-xs text-gray-400">
         x:{Math.round(region.x)} y:{Math.round(region.y)} w:{Math.round(region.width)} h:{Math.round(region.height)}
       </div>
-      <button
-        onClick={() => onConfirm(region)}
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-      >
-        Xác nhận vùng subtitle
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onConfirm(region)}
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+        >
+          Xác nhận vùng subtitle
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+        >
+          Hủy
+        </button>
+      </div>
     </div>
   );
 }

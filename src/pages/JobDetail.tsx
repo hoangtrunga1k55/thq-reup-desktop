@@ -19,6 +19,8 @@ export default function JobDetail() {
   const [sub, setSub] = useState<WaitingSub | null>(null);
   const [content, setContent] = useState<WaitingContent | null>(null);
   const [outputPath, setOutputPath] = useState("");
+  const [aiContent, setAiContent] = useState<AIContent | null>(null);
+  const [hookText, setHookText] = useState("");
   const [error, setError] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -47,6 +49,8 @@ export default function JobDetail() {
           break;
         case "completed":
           setOutputPath(p.output_path ?? "");
+          setAiContent(p.ai_content ?? null);
+          setHookText(p.hook_text ?? "");
           setPercent(100);
           setPhase("completed");
           setStatus("Hoàn tất");
@@ -64,6 +68,12 @@ export default function JobDetail() {
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
+
+  function onCancel() {
+    cancelJob(id).catch((e) => setError(String(e)));
+    setPhase("failed");
+    setStatus("Đã hủy");
+  }
 
   function onConfirmSub(region: Region) {
     confirmSubtitle(id, region).catch((e) => setError(String(e)));
@@ -83,7 +93,7 @@ export default function JobDetail() {
         <h1 className="text-2xl font-semibold">Job #{id}</h1>
         {phase === "running" && (
           <button
-            onClick={() => cancelJob(id)}
+            onClick={onCancel}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
           >
             Hủy
@@ -114,6 +124,7 @@ export default function JobDetail() {
             videoHeight={sub.video_height}
             initial={sub.region}
             onConfirm={onConfirmSub}
+            onCancel={onCancel}
           />
         </div>
       )}
@@ -125,15 +136,21 @@ export default function JobDetail() {
             content={content.ai_content}
             hookText={content.hook_text}
             onConfirm={onConfirmContent}
+            onCancel={onCancel}
           />
         </div>
       )}
 
-      {phase === "completed" && outputPath && (
-        <div className="space-y-3 rounded-2xl bg-white p-6 shadow-sm">
-          <div className="text-sm font-medium text-green-700">Video đã render xong ✅</div>
-          <video src={convertFileSrc(outputPath)} controls className="w-full max-w-xs rounded-lg" />
-          <div className="break-all text-xs text-gray-400">{outputPath}</div>
+      {phase === "completed" && (
+        <div className="space-y-4">
+          {outputPath && (
+            <div className="space-y-3 rounded-2xl bg-white p-6 shadow-sm">
+              <div className="text-sm font-medium text-green-700">Video đã render xong ✅</div>
+              <video src={convertFileSrc(outputPath)} controls className="w-full max-w-xs rounded-lg" />
+              <div className="break-all text-xs text-gray-400">{outputPath}</div>
+            </div>
+          )}
+          <AIContentResult ai={aiContent} hook={hookText} />
         </div>
       )}
 
@@ -147,6 +164,82 @@ export default function JobDetail() {
           <div ref={bottom} />
         </div>
       </div>
+    </div>
+  );
+}
+
+// AIContentResult shows the AI-generated metadata with per-field copy buttons,
+// so the user can grab the title/description/caption/hashtags for posting.
+function AIContentResult({ ai, hook }: { ai: AIContent | null; hook: string }) {
+  const [copied, setCopied] = useState("");
+
+  async function copy(text: string, key: string) {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied(""), 1200);
+    } catch {
+      /* clipboard blocked — user can still select the text */
+    }
+  }
+
+  const rows: { key: string; label: string; value: string; multiline?: boolean }[] = [
+    { key: "title", label: "Tiêu đề", value: ai?.title ?? "" },
+    { key: "desc", label: "Mô tả ngắn", value: ai?.short_description ?? "", multiline: true },
+    { key: "caption", label: "Caption", value: ai?.caption ?? "", multiline: true },
+    { key: "hashtags", label: "Hashtags", value: (ai?.hashtags ?? []).map((h) => `#${h}`).join(" ") },
+    { key: "hook", label: "Hook", value: hook },
+  ].filter((r) => r.value.trim() !== "");
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="space-y-3 rounded-2xl bg-white p-6 shadow-sm">
+      <div className="text-sm font-medium text-gray-700">Nội dung AI (copy để đăng)</div>
+      {rows.map((r) => (
+        <div key={r.key} className="space-y-1">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-gray-500">{r.label}</label>
+            <button
+              onClick={() => copy(r.value, r.key)}
+              className="rounded-md border border-gray-300 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
+            >
+              {copied === r.key ? "Đã copy" : "Copy"}
+            </button>
+          </div>
+          {r.multiline ? (
+            <textarea
+              readOnly
+              value={r.value}
+              rows={2}
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+            />
+          ) : (
+            <input
+              readOnly
+              value={r.value}
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+            />
+          )}
+        </div>
+      ))}
+      {ai?.title_variants && ai.title_variants.length > 0 && (
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-500">Tiêu đề thay thế</label>
+          {ai.title_variants.map((t, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input readOnly value={t} className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm" />
+              <button
+                onClick={() => copy(t, `var-${i}`)}
+                className="shrink-0 rounded-md border border-gray-300 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
+              >
+                {copied === `var-${i}` ? "Đã copy" : "Copy"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

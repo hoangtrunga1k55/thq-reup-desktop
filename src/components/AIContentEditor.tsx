@@ -13,10 +13,11 @@ type Props = {
   content: AIContent | null;
   hookText: string;
   onConfirm: (edit: { translated_srt: string; ai_content: AIContent; hook_text: string }) => void;
+  onCancel: () => void;
 };
 
 // Lets the user review/edit the translated subtitle + AI content before render.
-export default function AIContentEditor({ srt, content, hookText, onConfirm }: Props) {
+export default function AIContentEditor({ srt, content, hookText, onConfirm, onCancel }: Props) {
   const [title, setTitle] = useState(content?.title ?? "");
   const [caption, setCaption] = useState(content?.caption ?? "");
   const [hashtags, setHashtags] = useState((content?.hashtags ?? []).join(", "));
@@ -59,9 +60,14 @@ export default function AIContentEditor({ srt, content, hookText, onConfirm }: P
         <textarea className={`${inputCls} font-mono text-xs`} rows={10} value={srtText} onChange={(e) => setSrtText(e.target.value)} />
       </Field>
 
-      <button onClick={confirm} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
-        Xác nhận & render
-      </button>
+      <div className="flex gap-2">
+        <button onClick={confirm} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+          Xác nhận & render
+        </button>
+        <button onClick={onCancel} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">
+          Hủy
+        </button>
+      </div>
     </div>
   );
 }
