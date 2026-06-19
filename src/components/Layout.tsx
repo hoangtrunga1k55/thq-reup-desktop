@@ -5,7 +5,6 @@ const nav = [
   { to: "/", label: "Bảng điều khiển", end: true },
   { to: "/jobs/new", label: "Tạo job mới" },
   { to: "/settings", label: "Cấu hình" },
-  { to: "/keys", label: "API Keys" },
 ];
 
 export default function Layout() {

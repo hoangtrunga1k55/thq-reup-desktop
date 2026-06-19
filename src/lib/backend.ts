@@ -77,6 +77,19 @@ export async function getSettings(): Promise<BackendSettings> {
   return api<BackendSettings>("/api/settings");
 }
 
+// ─── Credentials (Hướng A: zero-config exe) ───────────────────────────────────
+// Decrypted third-party keys + settings for the logged-in user. The exe stores
+// nothing locally — it fetches this and passes it to the engine per job.
+
+export type Credentials = {
+  keys: { openai: string; thq: string; srt_voice: string; facebook_token: string };
+  settings: BackendSettings;
+};
+
+export async function getCredentials(): Promise<Credentials> {
+  return api<Credentials>("/api/me/credentials");
+}
+
 // ─── Voices (uses the user's SRT key server-side; no local key needed) ────────
 
 export type Voice = { ShortName: string; FriendlyName: string; Locale: string; Gender: string };

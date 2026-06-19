@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { startJob, keychain, KEY_ACCOUNTS } from "../lib/engine";
-import { getSettings, getVoices, type Voice } from "../lib/backend";
+import { startJob } from "../lib/engine";
+import { getVoices, type Credentials, type Voice } from "../lib/backend";
+import { loadCredentials } from "../lib/credentials";
 import { mapBackendSettings } from "../lib/settingsMap";
 
 const LANGUAGES = ["Vietnamese", "English", "Chinese", "Korean", "Japanese", "Thai"];
@@ -24,28 +25,26 @@ export default function NewJob() {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voicesError, setVoicesError] = useState("");
   const [manualMode, setManualMode] = useState(false);
-  const [defaults, setDefaults] = useState<Record<string, unknown>>({});
+  const [cred, setCred] = useState<Credentials | null>(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Pull keys + settings from the backend (zero-config exe).
   useEffect(() => {
-    getSettings()
-      .then((bs) => {
-        setDefaults(mapBackendSettings(bs));
-        if (bs["default_voice_provider"]) setProvider(String(bs["default_voice_provider"]));
+    loadCredentials()
+      .then((c) => {
+        setCred(c);
+        if (c.settings?.default_voice_provider) setProvider(String(c.settings.default_voice_provider));
+        if (c.settings?.default_target_language) setLang(String(c.settings.default_target_language));
       })
-      .catch(() => {});
+      .catch((e) => setError(e instanceof Error ? e.message : "Không tải được cấu hình từ auto-reup"));
   }, []);
 
-  // Load voices whenever the provider changes.
   useEffect(() => {
     let cancelled = false;
     setVoicesError("");
     getVoices(provider)
-      .then((vs) => {
-        if (cancelled) return;
-        setVoices(vs);
-      })
+      .then((vs) => !cancelled && setVoices(vs))
       .catch((e) => {
         if (cancelled) return;
         setVoices([]);
@@ -56,32 +55,23 @@ export default function NewJob() {
     };
   }, [provider]);
 
-  // Voices filtered to the target language locale (fallback: show all).
   const prefix = LANG_LOCALE[lang];
   const filtered = prefix ? voices.filter((v) => v.Locale?.toLowerCase().startsWith(prefix)) : voices;
   const shown = filtered.length > 0 ? filtered : voices;
 
-  // Keep a valid voice selected when the list changes.
   useEffect(() => {
-    if (shown.length === 0) {
-      setVoice("");
-    } else if (!shown.some((v) => v.ShortName === voice)) {
-      setVoice(shown[0].ShortName);
-    }
+    if (shown.length === 0) setVoice("");
+    else if (!shown.some((v) => v.ShortName === voice)) setVoice(shown[0].ShortName);
   }, [shown, voice]);
 
   async function onStart() {
     setError("");
     setSubmitting(true);
     try {
-      const [openai, thq, srtVoice, facebookToken] = await Promise.all([
-        keychain.get(KEY_ACCOUNTS.openai),
-        keychain.get(KEY_ACCOUNTS.thq),
-        keychain.get(KEY_ACCOUNTS.srtVoice),
-        keychain.get(KEY_ACCOUNTS.facebook),
-      ]);
-      if (!openai || !thq || !srtVoice) {
-        setError("Thiếu API key (OpenAI / THQ / SRT-Voice). Vào mục API Keys để nhập.");
+      const c = cred ?? (await loadCredentials());
+      const keys = c.keys;
+      if (!keys?.openai || !keys?.thq || !keys?.srt_voice) {
+        setError("Tài khoản auto-reup chưa cấu hình đủ API key (OpenAI / THQ / SRT-Voice). Vào web auto-reup để thêm.");
         setSubmitting(false);
         return;
       }
@@ -89,9 +79,9 @@ export default function NewJob() {
       const jobId = `${Date.now()}`;
       await startJob(jobId, {
         source_url: url,
-        keys: { openai, thq, srt_voice: srtVoice, facebook_token: facebookToken },
+        keys,
         settings: {
-          ...defaults,
+          ...mapBackendSettings(c.settings),
           target_language: lang,
           voice_provider: provider,
           voice,
@@ -139,12 +129,7 @@ export default function NewJob() {
             </select>
           </Field>
           <Field label="Giọng đọc">
-            <select
-              className={inputCls}
-              value={voice}
-              onChange={(e) => setVoice(e.target.value)}
-              disabled={shown.length === 0}
-            >
+            <select className={inputCls} value={voice} onChange={(e) => setVoice(e.target.value)} disabled={shown.length === 0}>
               {shown.length === 0 && <option value="">(không có giọng)</option>}
               {shown.map((v) => (
                 <option key={v.ShortName} value={v.ShortName}>

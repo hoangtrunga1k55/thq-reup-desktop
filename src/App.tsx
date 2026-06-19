@@ -8,7 +8,6 @@ import Dashboard from "./pages/Dashboard";
 import NewJob from "./pages/NewJob";
 import JobDetail from "./pages/JobDetail";
 import Settings from "./pages/Settings";
-import Keys from "./pages/Keys";
 import type { JSX } from "react";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -36,7 +35,6 @@ export default function App() {
         <Route path="/jobs/new" element={<NewJob />} />
         <Route path="/jobs/:id" element={<JobDetail />} />
         <Route path="/settings" element={<Settings />} />
-        <Route path="/keys" element={<Keys />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
