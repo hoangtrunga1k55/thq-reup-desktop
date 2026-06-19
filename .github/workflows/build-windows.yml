@@ -27,6 +27,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+          cache-dependency-path: engine/go.sum
 
       - uses: actions/setup-python@v5
         with:
@@ -48,7 +49,15 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path src-tauri/binaries | Out-Null
           Push-Location engine
+          # Retry module download — proxy.golang.org TLS handshakes can time out.
+          for ($i=1; $i -le 4; $i++) {
+            go mod download
+            if ($LASTEXITCODE -eq 0) { break }
+            Write-Host "go mod download attempt $i failed; retrying in 10s..."
+            Start-Sleep -Seconds 10
+          }
           go build -o ../src-tauri/binaries/engine-x86_64-pc-windows-msvc.exe ./cmd/engine
+          if ($LASTEXITCODE -ne 0) { throw "go build failed" }
           Pop-Location
 
       - name: Build OCR sidecar (RapidOCR via PyInstaller)
@@ -65,7 +74,11 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           New-Item -ItemType Directory -Force -Path src-tauri/resources/ffmpeg | Out-Null
-          Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile ffmpeg.zip
+          # Retry — gyan.dev can be slow / time out the TLS handshake.
+          for ($i=1; $i -le 4; $i++) {
+            try { Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile ffmpeg.zip -TimeoutSec 120; break }
+            catch { Write-Host "ffmpeg download attempt $i failed; retrying in 10s..."; Start-Sleep -Seconds 10 }
+          }
           Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_extract
           $bin = Get-ChildItem -Recurse ffmpeg_extract -Filter ffmpeg.exe | Select-Object -First 1
           Copy-Item $bin.FullName src-tauri/resources/ffmpeg/ffmpeg.exe
