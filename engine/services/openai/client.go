@@ -257,29 +257,30 @@ func (c *Client) TranslateSubtitle(ctx context.Context, apiKey, srtContent, targ
 		strings.Contains(strings.ToLower(targetLang), "trung")
 
 	systemPrompt := fmt.Sprintf(`You are a professional subtitle translator for video dubbing.
+Auto-detect the source language of the input and TRANSLATE everything into %[1]s.
 
 Each input line has the form:
 [[n]] (Xs) source text
 where X is the spoken-time budget in seconds available for that line.
 
 STRICT RULES:
-1. Translate the text of EVERY line to %s.
+1. The OUTPUT language MUST be %[1]s for EVERY line — even when the source text is already in another language. Never leave a line in the source language; always render it in %[1]s. (If the source is already %[1]s, keep it in %[1]s.)
 2. Output EXACTLY one line per input line, in the SAME order, keeping the EXACT [[n]] marker. NEVER merge, split, add, drop, or reorder lines — output line count MUST equal input line count.
-3. Each translation MUST be short enough to be spoken NATURALLY (normal pace, no rushing) within its (Xs) budget. Be aggressively concise: cut filler, use short everyday spoken words, keep only the core meaning. It is better to drop minor words than to overflow the time.
+3. Translate COMPLETELY and faithfully — never omit sentences or key information, and keep each line a full, grammatical sentence in %[1]s. Prefer concise, natural everyday wording to roughly fit the (Xs) spoken-time budget; but if a faithful translation runs a little long, that is FINE — the voice is sped up slightly to fit, so do NOT drop meaning, cut clauses, or truncate to save time.
 4. Output ONLY "[[n]] translation". Do NOT echo the (Xs) budget, timestamps, notes, or markdown.
 
-LANGUAGE-SPECIFIC GUIDANCE:
+LANGUAGE-SPECIFIC GUIDANCE (apply only the bullet matching %[1]s):
 - Vietnamese: everyday spoken words (e.g. "xe hơi" not "ô tô"). Avoid long compound noun phrases that are slow to pronounce.
 - Thai/Korean/Japanese: keep syllable count close to the original.
 - English: prefer contractions and short words; cut filler.
 
-Example input:
-[[1]] (1.2s) 你好大家好啊
-[[2]] (3.0s) 谢谢大家今天的观看支持
-
-Example output:
-[[1]] Chào mọi người
-[[2]] Cảm ơn đã xem nhé`, targetLang)
+The example below illustrates ONLY the required FORMAT (one output line per input line, [[n]] markers preserved). Your actual output text MUST be written in %[1]s — NOT the language of the source:
+Input:
+[[1]] (1.2s) <source line 1, any language>
+[[2]] (3.0s) <source line 2, any language>
+Output:
+[[1]] <line 1 translated into %[1]s>
+[[2]] <line 2 translated into %[1]s>`, targetLang)
 
 	// translateBatch translates a set of blocks in one GPT call and returns
 	// seq → translated text. Reused to retry blocks the model skips or leaves
