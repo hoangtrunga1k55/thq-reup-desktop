@@ -131,16 +131,22 @@ func (s *Service) fontSpec(friendly string) string {
 			return "fontfile=" + escapeFilterPath(p)
 		}
 	}
-	return "font=" + friendly
+	// Fallback: resolve by name via fontconfig. Quote in case the name has spaces.
+	return "font='" + strings.ReplaceAll(friendly, "'", `\'`) + "'"
 }
 
 // escapeFilterPath makes a filesystem path safe inside an ffmpeg filter argument:
 // backslashes → forward slashes, and ':' (e.g. the Windows drive colon) escaped.
+// escapeFilterPath wraps a filesystem path for use as an ffmpeg filter option
+// value. It drops the Windows verbatim prefix, switches to forward slashes, and
+// SINGLE-QUOTES the result. Inside single quotes the filtergraph parser treats
+// ':' and spaces literally (e.g. "C:/Users/.../Auto ReUp Studio/x.ttf"), which
+// plain backslash-escaping does not handle for paths containing spaces.
 func escapeFilterPath(p string) string {
 	p = strings.TrimPrefix(p, `\\?\`) // drop Windows verbatim prefix
 	p = strings.ReplaceAll(p, "\\", "/")
-	p = strings.ReplaceAll(p, ":", "\\:")
-	return p
+	p = strings.ReplaceAll(p, "'", `\'`) // escape any single quotes
+	return "'" + p + "'"
 }
 
 // NormalizeToFullHD re-encodes videoPath to exactly 1080×1920 (portrait Full HD).
