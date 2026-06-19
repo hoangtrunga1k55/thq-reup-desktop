@@ -340,8 +340,14 @@ func (s *Service) buildVideoFilter(cfg RenderConfig, assPath string) string {
 		))
 	}
 
-	// 4. Burn in new subtitle
-	parts = append(parts, "ass="+assPath)
+	// 4. Burn in new subtitle. Escape the path for the filter (Windows "C:\…"
+	// would otherwise break on the ':' option separator) and point libass at the
+	// bundled fonts dir so subtitle fonts resolve without system installation.
+	assArg := "ass=" + escapeFilterPath(assPath)
+	if s.fontsDir != "" {
+		assArg += ":fontsdir=" + escapeFilterPath(s.fontsDir)
+	}
+	parts = append(parts, assArg)
 
 	// 5. Hook text overlay (shown at start of video, then disappears)
 	if cfg.HookText != "" && cfg.HookDuration > 0 {

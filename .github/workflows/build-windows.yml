@@ -61,6 +61,43 @@ jobs:
           Copy-Item dist/ocr-sidecar.exe ../src-tauri/binaries/ocr-sidecar-x86_64-pc-windows-msvc.exe
           Pop-Location
 
+      - name: Bundle ffmpeg + ffprobe
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path src-tauri/resources/ffmpeg | Out-Null
+          Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_extract
+          $bin = Get-ChildItem -Recurse ffmpeg_extract -Filter ffmpeg.exe | Select-Object -First 1
+          Copy-Item $bin.FullName src-tauri/resources/ffmpeg/ffmpeg.exe
+          Copy-Item (Join-Path $bin.DirectoryName "ffprobe.exe") src-tauri/resources/ffmpeg/ffprobe.exe
+          Get-ChildItem src-tauri/resources/ffmpeg
+
+      - name: Bundle fonts (best-effort — a missing font won't fail the build)
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/resources/fonts | Out-Null
+          function Get-Font($url, $name) {
+            try {
+              Invoke-WebRequest -Uri $url -OutFile (Join-Path "src-tauri/resources/fonts" $name)
+              Write-Host "ok:   $name"
+            } catch { Write-Host "skip: $name ($url)" }
+          }
+          # DejaVu (covers Latin + Vietnamese) — reliable release zip
+          try {
+            Invoke-WebRequest "https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip" -OutFile dejavu.zip
+            Expand-Archive dejavu.zip -DestinationPath dejavu
+            Copy-Item (Get-ChildItem -Recurse dejavu -Filter DejaVuSans.ttf | Select-Object -First 1).FullName src-tauri/resources/fonts/DejaVuSans.ttf
+            Copy-Item (Get-ChildItem -Recurse dejavu -Filter DejaVuSans-Bold.ttf | Select-Object -First 1).FullName src-tauri/resources/fonts/DejaVuSans-Bold.ttf
+            Write-Host "ok:   DejaVu"
+          } catch { Write-Host "skip: DejaVu" }
+          # Noto Sans (Latin), Thai, CJK
+          Get-Font "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf" "NotoSans-Regular.ttf"
+          Get-Font "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf" "NotoSans-Bold.ttf"
+          Get-Font "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansThai/NotoSansThai-ExtraBold.ttf" "NotoSansThai-ExtraBold.ttf"
+          Get-Font "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTC/NotoSansCJK-Regular.ttc" "NotoSansCJK-Regular.ttc"
+          Get-Font "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTC/NotoSansCJK-Bold.ttc" "NotoSansCJK-Bold.ttc"
+          Write-Host "--- bundled fonts ---"
+          Get-ChildItem src-tauri/resources/fonts
+
       - name: Tauri build (NSIS installer)
         run: npm run tauri build
 
