@@ -59,7 +59,7 @@ fn keychain_get(account: String) -> Result<String, String> {
 #[tauri::command]
 fn keychain_delete(account: String) -> Result<(), String> {
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, &account).map_err(|e| e.to_string())?;
-    match entry.delete_credential() {
+    match entry.delete_password() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(e.to_string()),
     }
