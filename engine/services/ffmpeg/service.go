@@ -138,14 +138,18 @@ func (s *Service) fontSpec(friendly string) string {
 // escapeFilterPath makes a filesystem path safe inside an ffmpeg filter argument:
 // backslashes → forward slashes, and ':' (e.g. the Windows drive colon) escaped.
 // escapeFilterPath wraps a filesystem path for use as an ffmpeg filter option
-// value. It drops the Windows verbatim prefix, switches to forward slashes, and
-// SINGLE-QUOTES the result. Inside single quotes the filtergraph parser treats
-// ':' and spaces literally (e.g. "C:/Users/.../Auto ReUp Studio/x.ttf"), which
-// plain backslash-escaping does not handle for paths containing spaces.
+// value on any OS. ffmpeg parses filter args in TWO passes:
+//   - pass 1 (filtergraph): handles quotes; inside '...' a '\' is literal.
+//   - pass 2 (the filter, e.g. ass/drawtext): splits options on ':'.
+//
+// So a Windows path needs BOTH: single quotes (so spaces survive pass 1 and the
+// backslash isn't eaten) AND a '\:'-escaped colon (so pass 2 doesn't read the
+// drive colon as an option separator). Result e.g. 'C\:/Users/.../Auto ReUp Studio/x.ttf'.
 func escapeFilterPath(p string) string {
-	p = strings.TrimPrefix(p, `\\?\`) // drop Windows verbatim prefix
-	p = strings.ReplaceAll(p, "\\", "/")
-	p = strings.ReplaceAll(p, "'", `\'`) // escape any single quotes
+	p = strings.TrimPrefix(p, `\\?\`)    // drop Windows verbatim prefix
+	p = strings.ReplaceAll(p, "\\", "/") // forward slashes
+	p = strings.ReplaceAll(p, "'", `\'`) // escape single quotes
+	p = strings.ReplaceAll(p, ":", `\:`) // escape colon for the filter's pass-2 parser
 	return "'" + p + "'"
 }
 
