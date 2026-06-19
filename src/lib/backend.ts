@@ -6,8 +6,8 @@
 
 import { fetch } from "@tauri-apps/plugin-http";
 
-// TODO(config): make this user-configurable in Settings. Default to production.
-const BASE_URL = "https://api.autoreup.example"; // placeholder — set real backend host
+// Backend host (the same API the web app uses). Paths below prepend "/api/...".
+const BASE_URL = "https://auto-sub.io.vn";
 
 let authToken: string | null = null;
 
