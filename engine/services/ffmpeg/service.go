@@ -137,6 +137,7 @@ func (s *Service) fontSpec(friendly string) string {
 // escapeFilterPath makes a filesystem path safe inside an ffmpeg filter argument:
 // backslashes → forward slashes, and ':' (e.g. the Windows drive colon) escaped.
 func escapeFilterPath(p string) string {
+	p = strings.TrimPrefix(p, `\\?\`) // drop Windows verbatim prefix
 	p = strings.ReplaceAll(p, "\\", "/")
 	p = strings.ReplaceAll(p, ":", "\\:")
 	return p

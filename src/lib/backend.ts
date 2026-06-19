@@ -76,3 +76,13 @@ export type BackendSettings = Record<string, unknown> & {
 export async function getSettings(): Promise<BackendSettings> {
   return api<BackendSettings>("/api/settings");
 }
+
+// ─── Voices (uses the user's SRT key server-side; no local key needed) ────────
+
+export type Voice = { ShortName: string; FriendlyName: string; Locale: string; Gender: string };
+
+export async function getVoices(provider: string): Promise<Voice[]> {
+  const res = await api<any>(`/api/voices/list?provider=${encodeURIComponent(provider)}`);
+  const arr = Array.isArray(res) ? res : (res?.voices ?? res?.data ?? res?.items ?? []);
+  return arr as Voice[];
+}

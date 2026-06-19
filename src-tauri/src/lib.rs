@@ -92,13 +92,19 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
+/// Strip the Windows verbatim prefix (\\?\) — it breaks ffmpeg filter paths and
+/// some file opens. No-op on non-verbatim paths and other OSes.
+fn strip_verbatim(p: String) -> String {
+    p.strip_prefix(r"\\?\").map(|s| s.to_string()).unwrap_or(p)
+}
+
 /// Resolve a bundled resource binary, returning its path only if it exists.
 fn resource_bin(app: &tauri::AppHandle, rel: &str) -> Option<String> {
     app.path()
         .resolve(rel, BaseDirectory::Resource)
         .ok()
         .filter(|p| p.exists())
-        .map(|p| p.to_string_lossy().into_owned())
+        .map(|p| strip_verbatim(p.to_string_lossy().into_owned()))
 }
 
 /// Spawn the OCR sidecar (binds 127.0.0.1:8000).
@@ -125,7 +131,7 @@ fn spawn_engine(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>
     let data_dir = app
         .path()
         .app_data_dir()
-        .map(|p| p.to_string_lossy().to_string())
+        .map(|p| strip_verbatim(p.to_string_lossy().to_string()))
         .unwrap_or_else(|_| ".".to_string());
 
     // ffmpeg/ffprobe binary names differ per OS.
@@ -153,7 +159,7 @@ fn spawn_engine(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>
     if let Ok(dir) = app.path().resolve("resources/fonts", BaseDirectory::Resource) {
         if dir.exists() {
             args.push("--fonts-dir".into());
-            args.push(dir.to_string_lossy().into_owned());
+            args.push(strip_verbatim(dir.to_string_lossy().into_owned()));
         }
     }
 
