@@ -88,8 +88,25 @@ pub fn run() {
             keychain_get,
             keychain_delete
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // Kill the sidecars on exit so they don't linger and lock their .exe
+            // files (which blocks the installer from overwriting them on update).
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                let state = app_handle.state::<EngineState>();
+                if let Ok(mut g) = state.engine.lock() {
+                    if let Some(c) = g.take() {
+                        let _ = c.kill();
+                    }
+                }
+                if let Ok(mut g) = state.ocr.lock() {
+                    if let Some(c) = g.take() {
+                        let _ = c.kill();
+                    }
+                }
+            }
+        });
 }
 
 /// Strip the Windows verbatim prefix (\\?\) — it breaks ffmpeg filter paths and
