@@ -111,6 +111,14 @@ jobs:
           Write-Host "--- bundled fonts ---"
           Get-ChildItem src-tauri/resources/fonts
 
+      - name: Set app version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          $ver = "${{ github.ref_name }}".TrimStart('v')
+          $conf = "src-tauri/tauri.conf.json"
+          (Get-Content $conf -Raw) -replace '("version":\s*")[^"]*(")', "`${1}$ver`${2}" | Set-Content -NoNewline $conf
+          Write-Host "set app version = $ver"
+
       - name: Tauri build (NSIS installer)
         run: npm run tauri build
 
