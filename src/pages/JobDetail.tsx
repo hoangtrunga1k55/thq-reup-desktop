@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { cancelJob, confirmContent, confirmSubtitle, onEngineEvent, type EngineEvent, type Region } from "../lib/engine";
+import { cancelJob, confirmContent, confirmSubtitle, deleteJob, onEngineEvent, type EngineEvent, type Region } from "../lib/engine";
 import SubtitleAreaEditor from "../components/SubtitleAreaEditor";
 import AIContentEditor, { type AIContent } from "../components/AIContentEditor";
 
@@ -12,6 +12,7 @@ type WaitingContent = { translated_srt: string; ai_content: AIContent | null; ho
 
 export default function JobDetail() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const [phase, setPhase] = useState<Phase>("running");
   const [percent, setPercent] = useState(0);
   const [status, setStatus] = useState("Đang chờ engine…");
@@ -23,6 +24,16 @@ export default function JobDetail() {
   const [hookText, setHookText] = useState("");
   const [error, setError] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
+
+  async function onDelete() {
+    if (!window.confirm("Xóa job này và toàn bộ dữ liệu cục bộ?")) return;
+    try {
+      await deleteJob(id);
+      navigate("/");
+    } catch (e) {
+      setError(String(e));
+    }
+  }
 
   useEffect(() => {
     const off = onEngineEvent(id, (e: EngineEvent) => {
@@ -91,14 +102,22 @@ export default function JobDetail() {
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Job #{id}</h1>
-        {phase === "running" && (
+        <div className="flex gap-2">
+          {phase === "running" && (
+            <button
+              onClick={onCancel}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+            >
+              Hủy
+            </button>
+          )}
           <button
-            onClick={onCancel}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+            onClick={onDelete}
+            className="rounded-lg border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
           >
-            Hủy
+            Xóa
           </button>
-        )}
+        </div>
       </div>
 
       <div className="space-y-2 rounded-2xl bg-white p-6 shadow-sm">

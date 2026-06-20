@@ -8,6 +8,7 @@ package pipeline
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -337,6 +338,23 @@ func (o *Orchestrator) Cancel(cmdID string, _ json.RawMessage) {
 	if h != nil {
 		h.cancel()
 	}
+}
+
+// Delete cancels a running job if needed, then removes its local history and artifacts.
+func (o *Orchestrator) Delete(cmdID string, _ json.RawMessage, emit ipc.EmitFunc) {
+	o.Cancel(cmdID, nil)
+
+	jobDir := filepath.Join(o.deps.DataDir, "jobs", cmdID)
+	_ = os.RemoveAll(jobDir)
+	if err := o.deps.Store.DeleteJob(cmdID); err != nil {
+		emit(ipc.Event{ID: cmdID, Type: ipc.EvtError, Payload: map[string]string{"error": err.Error()}})
+		return
+	}
+
+	emit(ipc.Event{ID: cmdID, Type: ipc.EvtResult, Payload: map[string]interface{}{
+		"deleted": true,
+		"job_id":  cmdID,
+	}})
 }
 
 // ConfirmSubtitle delivers the user-approved subtitle area to a paused job.

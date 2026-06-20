@@ -142,6 +142,10 @@ export function cancelJob(jobId: string): Promise<string> {
   return sendCommand("cancel_job", {}, jobId);
 }
 
+export function deleteJob(jobId: string): Promise<string> {
+  return sendCommand("delete_job", {}, jobId);
+}
+
 // ─── Keychain (third-party API keys) ────────────────────────────────────────
 
 export const keychain = {

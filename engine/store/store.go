@@ -132,3 +132,12 @@ func (s *Store) ListJobs(limit int) ([]Job, error) {
 	}
 	return out, rows.Err()
 }
+
+// DeleteJob removes a job from the local SQLite history.
+func (s *Store) DeleteJob(id string) error {
+	_, err := s.db.Exec(`DELETE FROM jobs WHERE id=?`, id)
+	if err != nil {
+		return fmt.Errorf("store: delete job: %w", err)
+	}
+	return nil
+}

@@ -87,6 +87,9 @@ func run(ctx context.Context, logger *logrus.Logger, r *ipc.Reader, out *ipc.Wri
 		case ipc.CmdCancelJob:
 			orch.Cancel(cmd.ID, cmd.Payload)
 
+		case ipc.CmdDeleteJob:
+			orch.Delete(cmd.ID, cmd.Payload, emit)
+
 		case ipc.CmdConfirmSubtitle:
 			orch.ConfirmSubtitle(cmd.ID, cmd.Payload)
 

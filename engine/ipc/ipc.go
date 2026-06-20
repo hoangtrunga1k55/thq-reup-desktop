@@ -13,7 +13,7 @@ import (
 // Command is a request from the Tauri shell to the engine.
 type Command struct {
 	ID      string          `json:"id"`      // correlation id, echoed back on events
-	Type    string          `json:"type"`    // ping | version | start_job | cancel_job | confirm_subtitle | confirm_content
+	Type    string          `json:"type"`    // ping | version | start_job | cancel_job | delete_job | confirm_subtitle | confirm_content
 	Payload json.RawMessage `json:"payload"` // type-specific body
 }
 
@@ -23,6 +23,7 @@ const (
 	CmdVersion         = "version"
 	CmdStartJob        = "start_job"
 	CmdCancelJob       = "cancel_job"
+	CmdDeleteJob       = "delete_job"
 	CmdConfirmSubtitle = "confirm_subtitle"
 	CmdConfirmContent  = "confirm_content"
 	CmdListJobs        = "list_jobs"
