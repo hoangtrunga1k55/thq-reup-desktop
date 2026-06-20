@@ -221,6 +221,59 @@ func srtTime(sec float64) string {
 
 // ─── Translate ────────────────────────────────────────────────────────────────
 
+// msToSRT formats milliseconds as an SRT timestamp (HH:MM:SS,mmm).
+func msToSRT(ms int) string {
+	if ms < 0 {
+		ms = 0
+	}
+	return srtTime(float64(ms) / 1000.0)
+}
+
+// sentenceEndRe matches text whose final non-space char ends a sentence.
+var sentenceEndRe = regexp.MustCompile(`[.!?。！？…]['")\]]?\s*$`)
+
+// mergeIntoSentences joins consecutive SRT blocks into whole sentences so the
+// translator receives complete units instead of mid-sentence fragments. Blocks
+// are merged until the running text ends a sentence, a pause (gap) separates
+// them, or a max duration is reached. Timestamps merge into one span; sequence
+// numbers are renumbered 1..N.
+func mergeIntoSentences(blocks []srtBlock) []srtBlock {
+	const maxMergedMs = 8000 // keep a merged subtitle readable (~8s on screen)
+	const maxGapMs = 800     // a pause longer than this ends the sentence
+	var out []srtBlock
+	var cur *srtBlock
+	flush := func() {
+		if cur != nil {
+			out = append(out, *cur)
+			cur = nil
+		}
+	}
+	for i := range blocks {
+		b := blocks[i]
+		if cur == nil {
+			c := b
+			cur = &c
+			continue
+		}
+		gap := b.startMs - cur.endMs
+		mergedDur := b.endMs - cur.startMs
+		if sentenceEndRe.MatchString(strings.TrimSpace(cur.text)) || gap > maxGapMs || mergedDur > maxMergedMs {
+			flush()
+			c := b
+			cur = &c
+			continue
+		}
+		cur.text = strings.TrimSpace(cur.text + " " + b.text)
+		cur.endMs = b.endMs
+	}
+	flush()
+	for i := range out {
+		out[i].seq = i + 1
+		out[i].timestamp = msToSRT(out[i].startMs) + " --> " + msToSRT(out[i].endMs)
+	}
+	return out
+}
+
 // TranslateSubtitle translates the text of each SRT block while preserving the
 // EXACT original timestamps and block count. It never trusts the model to emit
 // well-formed SRT (GPT tends to merge/drop/re-segment blocks, which silently
@@ -234,6 +287,20 @@ func (c *Client) TranslateSubtitle(ctx context.Context, apiKey, srtContent, targ
 	if len(blocks) == 0 {
 		return "", fmt.Errorf("openai: translate subtitle: no valid SRT blocks to translate")
 	}
+
+	// Whisper fragments a sentence across several short blocks (max 10 words /
+	// 4.5s). Translating those fragments one-by-one yields incomplete, mismatched
+	// output. Merge fragments back into whole sentences (merging their timestamps
+	// into one span) BEFORE translating, so each unit is a complete sentence.
+	srcBlockCount := len(blocks)
+	srcLastEndMs := blocks[len(blocks)-1].endMs
+	blocks = mergeIntoSentences(blocks)
+	c.logger.WithFields(logrus.Fields{
+		"src_blocks":      srcBlockCount,
+		"merged_blocks":   len(blocks),
+		"src_last_end_ms": srcLastEndMs,
+		"src_srt_chars":   len(srtContent),
+	}).Info("openai: translate — block counts (diagnostic)")
 
 	// Per-block spoken-time budget = the gap until the next subtitle starts (for
 	// the last block, its own duration). Given to the model so it keeps each line
@@ -302,6 +369,10 @@ Output:
 	for seq, txt := range translateBatch(blocks) {
 		translations[seq] = txt
 	}
+	c.logger.WithFields(logrus.Fields{
+		"first_pass_translated": len(translations),
+		"total_blocks":          len(blocks),
+	}).Info("openai: translate — first pass (diagnostic)")
 
 	// done reports whether a block has a usable translation: non-empty and, when
 	// the target isn't Chinese, not still left in Han characters.
