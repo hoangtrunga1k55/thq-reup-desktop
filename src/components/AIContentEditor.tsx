@@ -2,10 +2,8 @@ import { useState } from "react";
 
 export type AIContent = {
   title?: string;
-  short_description?: string;
   caption?: string;
   hashtags?: string[];
-  title_variants?: string[];
 };
 
 type Props = {

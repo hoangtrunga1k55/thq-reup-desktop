@@ -37,6 +37,10 @@ export function mapBackendSettings(bs: BackendSettings): Record<string, unknown>
     hook_enabled: g("hook_enabled"),
     hook_duration: g("hook_duration"),
 
+    // Pipeline toggles (subtitle off → no burn/cover; voice off → keep original audio)
+    enable_subtitle: g("enable_subtitle"),
+    enable_voice: g("enable_voice"),
+
     auto_post_to_facebook: g("auto_post_to_facebook"),
     facebook_page_id: g("facebook_page_id"),
   };

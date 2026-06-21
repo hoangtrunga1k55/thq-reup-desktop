@@ -17,50 +17,57 @@ import (
 func (o *Orchestrator) stage3(ctx context.Context, pr *progress, st *jobState) error {
 	s := st.params.Settings
 
-	// Validate SRT has at least one timestamp before spending on TTS/render.
-	if st.translatedSRT == "" || !strings.Contains(st.translatedSRT, " --> ") {
-		return fmt.Errorf("subtitle SRT rỗng hoặc không hợp lệ (không có timestamp)")
-	}
-	// Persist any edits made during manual confirmation.
-	if err := os.WriteFile(st.srtPath, []byte(st.translatedSRT), 0o644); err != nil {
-		return fmt.Errorf("write srt: %w", err)
+	// SRT is needed for subtitle burn and/or voice text. Skip when neither is on.
+	if s.subtitleEnabled() || s.voiceEnabled() {
+		if st.translatedSRT == "" || !strings.Contains(st.translatedSRT, " --> ") {
+			return fmt.Errorf("subtitle SRT rỗng hoặc không hợp lệ (không có timestamp)")
+		}
+		// Persist any edits made during manual confirmation.
+		if err := os.WriteFile(st.srtPath, []byte(st.translatedSRT), 0o644); err != nil {
+			return fmt.Errorf("write srt: %w", err)
+		}
 	}
 
-	// ── Generate voice ──────────────────────────────────────────────────────────
-	if st.params.Keys.SRTVoice == "" {
-		return fmt.Errorf("SRT-To-Voice API key chưa được cấu hình. Vào mục API Keys để thêm")
+	// ── Generate voice (skipped when voice is disabled → keep original audio) ────
+	if !s.voiceEnabled() {
+		pr.log("info", "Lồng tiếng đang TẮT — giữ audio gốc, bỏ qua tạo giọng")
+		st.voicePath = ""
+	} else {
+		if st.params.Keys.SRTVoice == "" {
+			return fmt.Errorf("SRT-To-Voice API key chưa được cấu hình. Vào mục API Keys để thêm")
+		}
+		pr.step("generate_voice", 70, "Đang tạo giọng đọc AI…")
+		voiceParams := srtvoice.ConvertParams{
+			SRTFilePath:     st.srtPath,
+			Provider:        s.VoiceProvider,
+			Voice:           s.Voice,
+			OutputFormat:    "mp3",
+			Strategy:        "speed",
+			Rate:            "+0%",
+			SpeedAdjustment: s.SpeedAdjustment,
+			OnProgress: func(_ string, progress, currentEntry, entryCount int) {
+				msg := "Đang tạo giọng đọc AI…"
+				if entryCount > 0 {
+					msg = fmt.Sprintf("Đang tạo giọng đọc %d/%d (%d%%)", currentEntry, entryCount, progress)
+				} else if progress > 0 {
+					msg = fmt.Sprintf("Đang tạo giọng đọc (%d%%)", progress)
+				}
+				pct := 70 + progress/10 // map 0–100 into the 70–80 band
+				if pct > 80 {
+					pct = 80
+				}
+				pr.progress("generate_voice", pct, msg)
+			},
+		}
+		voiceBytes, _, err := o.srtvoice.ConvertAndDownload(ctx, st.params.Keys.SRTVoice, voiceParams)
+		if err != nil {
+			return fmt.Errorf("generate voice: %w", err)
+		}
+		if err := os.WriteFile(st.voicePath, voiceBytes, 0o644); err != nil {
+			return fmt.Errorf("write voice: %w", err)
+		}
+		pr.progress("generate_voice", 80, "Giọng đọc đã được tạo")
 	}
-	pr.step("generate_voice", 70, "Đang tạo giọng đọc AI…")
-	voiceParams := srtvoice.ConvertParams{
-		SRTFilePath:     st.srtPath,
-		Provider:        s.VoiceProvider,
-		Voice:           s.Voice,
-		OutputFormat:    "mp3",
-		Strategy:        "speed",
-		Rate:            "+0%",
-		SpeedAdjustment: s.SpeedAdjustment,
-		OnProgress: func(_ string, progress, currentEntry, entryCount int) {
-			msg := "Đang tạo giọng đọc AI…"
-			if entryCount > 0 {
-				msg = fmt.Sprintf("Đang tạo giọng đọc %d/%d (%d%%)", currentEntry, entryCount, progress)
-			} else if progress > 0 {
-				msg = fmt.Sprintf("Đang tạo giọng đọc (%d%%)", progress)
-			}
-			pct := 70 + progress/10 // map 0–100 into the 70–80 band
-			if pct > 80 {
-				pct = 80
-			}
-			pr.progress("generate_voice", pct, msg)
-		},
-	}
-	voiceBytes, _, err := o.srtvoice.ConvertAndDownload(ctx, st.params.Keys.SRTVoice, voiceParams)
-	if err != nil {
-		return fmt.Errorf("generate voice: %w", err)
-	}
-	if err := os.WriteFile(st.voicePath, voiceBytes, 0o644); err != nil {
-		return fmt.Errorf("write voice: %w", err)
-	}
-	pr.progress("generate_voice", 80, "Giọng đọc đã được tạo")
 
 	// ── Render ───────────────────────────────────────────────────────────────────
 	pr.step("render", 82, "Đang render video cuối…")
@@ -111,6 +118,11 @@ func (o *Orchestrator) buildRenderConfig(ctx context.Context, st *jobState) ffmp
 		if marginV < 0 {
 			marginV = 0
 		}
+	}
+
+	// Subtitle disabled → no cover box and no burned-in subtitle.
+	if !s.subtitleEnabled() {
+		coverArea = nil
 	}
 
 	// Brand watermark.

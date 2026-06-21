@@ -89,6 +89,12 @@ type Settings struct {
 	HookEnabled         bool    `json:"hook_enabled"`
 	HookDuration        float64 `json:"hook_duration"`
 
+	// Pipeline toggles (pointer so an omitted value defaults to ON, matching the
+	// backend default of true). Subtitle off → no burn/cover; voice off → keep
+	// original audio (no srt-to-voice).
+	EnableSubtitle *bool `json:"enable_subtitle"`
+	EnableVoice    *bool `json:"enable_voice"`
+
 	// Posting
 	AutoPostToFacebook bool   `json:"auto_post_to_facebook"`
 	FacebookPageID     string `json:"facebook_page_id"`
@@ -96,6 +102,10 @@ type Settings struct {
 	// Flow
 	ManualMode bool `json:"manual_mode"` // pause for subtitle + content confirmation
 }
+
+// subtitleEnabled / voiceEnabled default to true when the flag is omitted.
+func (s *Settings) subtitleEnabled() bool { return s.EnableSubtitle == nil || *s.EnableSubtitle }
+func (s *Settings) voiceEnabled() bool    { return s.EnableVoice == nil || *s.EnableVoice }
 
 // normalize fills in safe defaults so a sparse settings blob still renders.
 func (s *Settings) normalize() {
@@ -260,7 +270,7 @@ func (o *Orchestrator) StartJob(parent context.Context, cmdID string, raw json.R
 		"percent":     100,
 		"title":       title,
 		"output_path": st.outputPath,
-		"ai_content":  st.aiContent, // title, short_description, caption, hashtags, title_variants
+		"ai_content":  st.aiContent, // title, caption, hashtags
 		"hook_text":   st.hookText,
 	}})
 }

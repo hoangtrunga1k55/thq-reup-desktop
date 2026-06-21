@@ -32,11 +32,9 @@ const (
 
 // AIContent holds all AI-generated metadata for a video.
 type AIContent struct {
-	Title            string   `json:"title"`
-	ShortDescription string   `json:"short_description"`
-	Caption          string   `json:"caption"`
-	Hashtags         []string `json:"hashtags"`
-	TitleVariants    []string `json:"title_variants"`
+	Title    string   `json:"title"`
+	Caption  string   `json:"caption"`
+	Hashtags []string `json:"hashtags"`
 }
 
 // Client is the OpenAI service adapter.
@@ -556,18 +554,16 @@ func (c *Client) GenerateAIContent(ctx context.Context, apiKey, translatedSRT, t
 	systemPrompt := fmt.Sprintf(`You are a social media content writer specializing in viral video content.
 Generate metadata for a video based ONLY on its subtitle content. Do NOT fabricate anything not in the subtitles.
 
-IMPORTANT: All text fields (title, short_description, caption, hashtags, title_variants) MUST be written in %s.
+IMPORTANT: All text fields (title, caption, hashtags) MUST be written in %s.
 
 Tone style: %s
 
 Return a JSON object with exactly these fields:
 {
   "title": "main video title in %s (max 100 chars)",
-  "short_description": "2-3 sentence description in %s (max 250 chars)",
   "caption": "engaging social media caption with emojis in %s (max 500 chars)",
-  "hashtags": ["hashtag1", "hashtag2", ...],  // 8-12 hashtags without # prefix, in %s
-  "title_variants": ["variant1", "variant2", "variant3"]  // 3 alternative titles in %s
-}`, targetLang, toneDesc, targetLang, targetLang, targetLang, targetLang, targetLang)
+  "hashtags": ["hashtag1", "hashtag2", ...]  // 8-12 hashtags without # prefix, in %s
+}`, targetLang, toneDesc, targetLang, targetLang, targetLang)
 
 	userPrompt := fmt.Sprintf("Generate content from this video subtitle:\n\n%s", translatedSRT)
 

@@ -239,46 +239,64 @@ func (s *Service) RenderFinalVideo(ctx context.Context, cfg RenderConfig) error 
 		cfg.VideoHeight = actualH
 	}
 
-	// Convert SRT → ASS
-	assPath := strings.TrimSuffix(cfg.SRTPath, filepath.Ext(cfg.SRTPath)) + ".ass"
-	if err := s.ConvertSRTtoASS(ctx, cfg.SRTPath, assPath, cfg.Style, cfg.VideoWidth, cfg.VideoHeight); err != nil {
-		return fmt.Errorf("ffmpeg: convert srt to ass: %w", err)
+	// Subtitle: only burn when a subtitle area is set (subtitle disabled → nil).
+	withSubtitle := cfg.SubtitleArea != nil
+	assPath := ""
+	if withSubtitle {
+		assPath = strings.TrimSuffix(cfg.SRTPath, filepath.Ext(cfg.SRTPath)) + ".ass"
+		if err := s.ConvertSRTtoASS(ctx, cfg.SRTPath, assPath, cfg.Style, cfg.VideoWidth, cfg.VideoHeight); err != nil {
+			return fmt.Errorf("ffmpeg: convert srt to ass: %w", err)
+		}
 	}
 
-	videoVol := cfg.VideoVolume
-	if videoVol == 0 {
-		videoVol = 0.15
-	}
-	audioVol := cfg.AudioVolume
-	if audioVol == 0 {
-		audioVol = 1.8
-	}
+	// Voice: only mix the AI voice when an audio path is set (voice disabled → "").
+	withVoice := cfg.AudioPath != ""
 
 	videoFilter := s.buildVideoFilter(cfg, assPath)
-	// duration=first anchors the mixed audio to the ORIGINAL video audio length
-	// ([a0]), so a shorter voice track is padded with silence rather than
-	// truncating the video (the old duration=shortest cut the video down to the
-	// voice length). Volume balance is unchanged (amix normalize stays default).
-	audioFC := fmt.Sprintf(
-		"[0:a]volume=%.2f[a0];[1:a]volume=%.2f[a1];[a0][a1]amix=inputs=2:duration=first[aout]",
-		videoVol, audioVol,
-	)
+	// With voice: mix original + voice (duration=first anchors to the ORIGINAL
+	// audio length so a shorter voice is padded with silence). Without voice:
+	// keep the original audio at full volume.
+	var audioFC string
+	if withVoice {
+		videoVol := cfg.VideoVolume
+		if videoVol == 0 {
+			videoVol = 0.15
+		}
+		audioVol := cfg.AudioVolume
+		if audioVol == 0 {
+			audioVol = 1.8
+		}
+		audioFC = fmt.Sprintf(
+			"[0:a]volume=%.2f[a0];[1:a]volume=%.2f[a1];[a0][a1]amix=inputs=2:duration=first[aout]",
+			videoVol, audioVol,
+		)
+	} else {
+		audioFC = "[0:a]volume=1.0[aout]"
+	}
 
 	hasImageBrand := cfg.Brand != nil && cfg.Brand.Type == "image" && cfg.Brand.ImagePath != ""
 
-	args := []string{"-y", "-i", cfg.VideoPath, "-i", cfg.AudioPath}
+	args := []string{"-y", "-i", cfg.VideoPath}
+	if withVoice {
+		args = append(args, "-i", cfg.AudioPath)
+	}
 
 	// Always use filter_complex for everything — mixing -vf with -filter_complex
 	// causes "No such filter: '0'" in FFmpeg 6.x when [0:a] is referenced.
 	if hasImageBrand {
+		// Brand image input index shifts when there is no voice input.
+		brandIdx := 1
+		if withVoice {
+			brandIdx = 2
+		}
 		args = append(args, "-i", cfg.Brand.ImagePath)
 
 		logoSize := cfg.Brand.FontSize * 5
 		if logoSize < 80 {
 			logoSize = 80
 		}
-		logoScale := fmt.Sprintf("[2:v]scale=%d:-1,format=rgba,colorchannelmixer=aa=%.2f[logo]",
-			logoSize, cfg.Brand.Opacity)
+		logoScale := fmt.Sprintf("[%d:v]scale=%d:-1,format=rgba,colorchannelmixer=aa=%.2f[logo]",
+			brandIdx, logoSize, cfg.Brand.Opacity)
 		lx, ly := brandPositionExpr(cfg.Brand.Position, "overlay_w", "overlay_h")
 		fc := fmt.Sprintf(
 			"[0:v]%s[v_base];%s;[v_base][logo]overlay=%s:%s[vout];%s",
@@ -351,14 +369,17 @@ func (s *Service) buildVideoFilter(cfg RenderConfig, assPath string) string {
 		))
 	}
 
-	// 4. Burn in new subtitle. Escape the path for the filter (Windows "C:\…"
-	// would otherwise break on the ':' option separator) and point libass at the
-	// bundled fonts dir so subtitle fonts resolve without system installation.
-	assArg := "ass=" + escapeFilterPath(assPath)
-	if s.fontsDir != "" {
-		assArg += ":fontsdir=" + escapeFilterPath(s.fontsDir)
+	// 4. Burn in new subtitle (only when subtitle is enabled → assPath set).
+	// Escape the path for the filter (Windows "C:\…" would otherwise break on the
+	// ':' option separator) and point libass at the bundled fonts dir so subtitle
+	// fonts resolve without system installation.
+	if assPath != "" {
+		assArg := "ass=" + escapeFilterPath(assPath)
+		if s.fontsDir != "" {
+			assArg += ":fontsdir=" + escapeFilterPath(s.fontsDir)
+		}
+		parts = append(parts, assArg)
 	}
-	parts = append(parts, assArg)
 
 	// 5. Hook text overlay (shown at start of video, then disappears)
 	if cfg.HookText != "" && cfg.HookDuration > 0 {

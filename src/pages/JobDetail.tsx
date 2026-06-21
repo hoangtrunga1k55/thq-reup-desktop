@@ -205,7 +205,6 @@ function AIContentResult({ ai, hook }: { ai: AIContent | null; hook: string }) {
 
   const rows: { key: string; label: string; value: string; multiline?: boolean }[] = [
     { key: "title", label: "Tiêu đề", value: ai?.title ?? "" },
-    { key: "desc", label: "Mô tả ngắn", value: ai?.short_description ?? "", multiline: true },
     { key: "caption", label: "Caption", value: ai?.caption ?? "", multiline: true },
     { key: "hashtags", label: "Hashtags", value: (ai?.hashtags ?? []).map((h) => `#${h}`).join(" ") },
     { key: "hook", label: "Hook", value: hook },
@@ -243,22 +242,6 @@ function AIContentResult({ ai, hook }: { ai: AIContent | null; hook: string }) {
           )}
         </div>
       ))}
-      {ai?.title_variants && ai.title_variants.length > 0 && (
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-500">Tiêu đề thay thế</label>
-          {ai.title_variants.map((t, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input readOnly value={t} className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm" />
-              <button
-                onClick={() => copy(t, `var-${i}`)}
-                className="shrink-0 rounded-md border border-gray-300 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
-              >
-                {copied === `var-${i}` ? "Đã copy" : "Copy"}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

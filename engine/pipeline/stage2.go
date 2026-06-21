@@ -12,6 +12,14 @@ import (
 // stage2 extracts audio, transcribes it (Whisper), translates the subtitle to the
 // target language, and generates AI content + hook. Ported from ProcessStage2Task.
 func (o *Orchestrator) stage2(ctx context.Context, pr *progress, st *jobState) error {
+	// When both subtitle and voice are off, nothing needs the transcript /
+	// translation / AI content — skip all OpenAI work (no transcribe/translate/gen).
+	if !st.params.Settings.subtitleEnabled() && !st.params.Settings.voiceEnabled() {
+		pr.log("info", "Phụ đề & lồng tiếng đều TẮT — bỏ qua transcribe/translate/AI content")
+		pr.progress("generate_ai_content", 68, "Bỏ qua xử lý phụ đề & nội dung")
+		return nil
+	}
+
 	key := st.params.Keys.OpenAI
 	if key == "" {
 		return fmt.Errorf("OpenAI API key chưa được cấu hình. Vào mục API Keys để thêm")
