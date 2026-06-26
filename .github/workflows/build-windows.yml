@@ -6,12 +6,14 @@ on:
   workflow_dispatch: {}
   push:
     branches: [main]
-    # Build + auto-release only when CODE changes. Pushes touching only config/
-    # docs (tauri.conf.json, package.json, *.md, workflows, …) are skipped.
+    # Build + auto-release when CODE or anything that changes the installer
+    # output changes. Pushes touching only docs/package.json/workflows are skipped.
     paths:
       - "engine/**"
       - "src/**"
       - "src-tauri/src/**"
+      - "src-tauri/*.nsh"
+      - "src-tauri/tauri.conf.json"
       - "ocr-sidecar/**"
 
 permissions:
