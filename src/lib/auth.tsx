@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { loadToken, logout as backendLogout, setToken } from "./backend";
+import { clearCredentials } from "./credentials";
 
 type AuthCtx = {
   token: string | null;
@@ -25,11 +26,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = (t: string) => {
+    // Drop any prior account's cached keys/settings before switching accounts.
+    clearCredentials();
     setToken(t);
     setTok(t);
   };
   const signOut = () => {
     backendLogout();
+    clearCredentials();
     setTok(null);
   };
 
