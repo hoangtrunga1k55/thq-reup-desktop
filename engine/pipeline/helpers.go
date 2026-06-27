@@ -2,12 +2,14 @@ package pipeline
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"image"
 	_ "image/jpeg" // register JPEG decoder for imageSize
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -54,8 +56,21 @@ func downloadURLToFile(ctx context.Context, url, dst string, maxBytes int64) err
 	return os.Rename(tmp, dst)
 }
 
-// downloadBrandImage fetches a brand image from the given URL.
+// downloadBrandImage fetches a brand image from a URL, or decodes it from an
+// inline "data:...;base64,..." URL (how the backend ships the user's local logo
+// to the desktop, which can't reach the server-side file).
 func downloadBrandImage(ctx context.Context, url string) ([]byte, error) {
+	if strings.HasPrefix(url, "data:") {
+		i := strings.Index(url, ",")
+		if i < 0 {
+			return nil, fmt.Errorf("invalid data URL for brand image")
+		}
+		meta, payload := url[:i], url[i+1:]
+		if strings.Contains(meta, ";base64") {
+			return base64.StdEncoding.DecodeString(payload)
+		}
+		return []byte(payload), nil
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
